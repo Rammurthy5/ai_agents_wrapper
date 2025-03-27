@@ -42,7 +42,7 @@ func (c *OpenAIClient) Call(prompt string) ApiResponse {
 			{"role": "user", "content": prompt},
 		},
 	}
-	resp := c.callAPI(c.url, c.apiKey, payload, "Bearer")
+	resp := callAPI(c.url, c.apiKey, "Bearer", c.Source(), c.maxRetries, c.retryDelay, payload, c.httpClient)
 	if resp.Error == nil {
 		var result map[string]interface{}
 		json.Unmarshal([]byte(resp.Message), &result)
@@ -78,7 +78,8 @@ func (c *HuggingFaceClient) Call(prompt string) ApiResponse {
 	payload := map[string]string{
 		"inputs": prompt,
 	}
-	resp := c.callAPI(c.url, c.apiKey, payload, "Bearer")
+	// resp := c.callAPI(c.url, c.apiKey, payload, "Bearer")
+	resp := callAPI(c.url, c.apiKey, "Bearer", c.Source(), c.maxRetries, c.retryDelay, payload, c.httpClient)
 	if resp.Error == nil {
 		var result []map[string]interface{}
 		json.Unmarshal([]byte(resp.Message), &result)
@@ -116,7 +117,7 @@ func (c *GeminiClient) Call(prompt string) ApiResponse {
 			{"parts": []map[string]string{{"text": prompt}}},
 		},
 	}
-	resp := c.callAPI(c.url, "", payload, "")
+	resp := callAPI(c.url, "", "", c.Source(), c.maxRetries, c.retryDelay, payload, c.httpClient)
 	if resp.Error == nil {
 		var result map[string]interface{}
 		json.Unmarshal([]byte(resp.Message), &result)
@@ -130,7 +131,8 @@ func (c *GeminiClient) Source() string {
 }
 
 // callAPI makes HTTP requests with retries
-func (c *OpenAIClient) callAPI(url, apiKey string, payload interface{}, authType string) ApiResponse {
+func callAPI(url, apiKey, authType, source string, maxRetries uint, retryDelay time.Duration,
+	payload interface{}, httpClient *http.Client) ApiResponse {
 	var apiResp ApiResponse
 	err := retry.Do(
 		func() error {
@@ -148,7 +150,7 @@ func (c *OpenAIClient) callAPI(url, apiKey string, payload interface{}, authType
 				req.Header.Set("Authorization", fmt.Sprintf("%s %s", authType, apiKey))
 			}
 
-			resp, err := c.httpClient.Do(req)
+			resp, err := httpClient.Do(req)
 			if err != nil {
 				return fmt.Errorf("http error: %v", err)
 			}
@@ -164,30 +166,20 @@ func (c *OpenAIClient) callAPI(url, apiKey string, payload interface{}, authType
 				return fmt.Errorf("read error: %v", err)
 			}
 
-			apiResp = ApiResponse{Source: c.Source(), Message: rawContent.String()}
+			apiResp = ApiResponse{Source: source, Message: rawContent.String()}
 			return nil
 		},
-		retry.Attempts(c.maxRetries),
-		retry.Delay(c.retryDelay),
+		retry.Attempts(maxRetries),
+		retry.Delay(retryDelay),
 		retry.RetryIf(func(err error) bool {
 			return err != nil && !isPermanentError(err)
 		}),
 	)
 
 	if err != nil {
-		return ApiResponse{Source: c.Source(), Error: err}
+		return ApiResponse{Source: source, Error: err}
 	}
 	return apiResp
-}
-
-// callAPI for HuggingFaceClient (to satisfy interface)
-func (c *HuggingFaceClient) callAPI(url, apiKey string, payload interface{}, authType string) ApiResponse {
-	return (&OpenAIClient{httpClient: c.httpClient, apiKey: c.apiKey, url: c.url, maxRetries: c.maxRetries, retryDelay: c.retryDelay}).callAPI(url, apiKey, payload, authType)
-}
-
-// callAPI for GeminiClient (to satisfy interface)
-func (c *GeminiClient) callAPI(url, apiKey string, payload interface{}, authType string) ApiResponse {
-	return (&OpenAIClient{httpClient: c.httpClient, apiKey: c.apiKey, url: c.url, maxRetries: c.maxRetries, retryDelay: c.retryDelay}).callAPI(url, apiKey, payload, authType)
 }
 
 func isPermanentError(err error) bool {

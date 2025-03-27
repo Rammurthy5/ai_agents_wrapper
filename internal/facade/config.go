@@ -16,6 +16,7 @@ type Config struct {
 	HuggingFaceURL string
 	GeminiKey      string
 	GeminiURL      string
+	RABBITMQ_URL   string
 	Timeout        time.Duration // HTTP client timeout
 	MaxRetries     uint          // Max retry attempts for API calls
 	RetryDelay     time.Duration // Delay between retries
@@ -33,6 +34,7 @@ func LoadConfig() (*Config, error) {
 		HuggingFaceURL: os.Getenv("HUGGINGFACE_URL"),
 		GeminiKey:      os.Getenv("GEMINI_API_KEY"),
 		GeminiURL:      os.Getenv("GEMINI_URL"),
+		RABBITMQ_URL:   os.Getenv("RABBITMQ_URL"),
 		Timeout:        10 * time.Second, // Default timeout
 		MaxRetries:     3,                // Default retries
 		RetryDelay:     1 * time.Second,  // Default delay
@@ -50,6 +52,9 @@ func LoadConfig() (*Config, error) {
 	}
 	if config.GeminiURL == "" {
 		config.GeminiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+	}
+	if config.RABBITMQ_URL == "" {
+		return nil, fmt.Errorf("missing RabbitMQ URL")
 	}
 
 	return config, nil

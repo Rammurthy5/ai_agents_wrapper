@@ -10,6 +10,7 @@ import (
 
 	"github.com/Rammurthy5/ai_agents_wrapper/internal/facade"
 	"github.com/Rammurthy5/ai_agents_wrapper/internal/queue"
+	"github.com/Rammurthy5/ai_agents_wrapper/internal/storage"
 )
 
 func main() {
@@ -28,6 +29,12 @@ func main() {
 		log.Fatal("Failed to initialize RabbitMQ:", err)
 	}
 	defer rabbit.Close()
+
+	redisClient, err := storage.NewRedisClient(cfg.Redis_URL)
+	if err != nil {
+		log.Fatal("Failed to initialize Redis:", err)
+	}
+	defer redisClient.Close()
 
 	// start consuming messages
 	msgs, err := rabbit.Consume()
@@ -50,12 +57,9 @@ func main() {
 
 			// process the prompt
 			result := f.GetMergedResults(task.Prompt)
-			for _, r := range result.Results {
-				if r.Error != nil {
-					fmt.Printf("Worker: %s failed for prompt '%s': %v\n", r.Source, task.Prompt, r.Error)
-				} else {
-					fmt.Printf("Worker: %s response for prompt '%s': %s\n", r.Source, task.Prompt, r.Message)
-				}
+			if err := redisClient.StoreResult(task.TaskID, result); err != nil {
+				log.Printf("Failed to store result for task %s: %v", task.TaskID, err)
+				continue
 			}
 		case <-sigChan:
 			fmt.Println("Worker shutting down")

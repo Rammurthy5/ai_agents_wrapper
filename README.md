@@ -1,5 +1,5 @@
 # ai_agents_wrapper
-wrapper api using Golang for GPT, huggingface, Gemini.
+distributed wrapper api using Golang for GPT, huggingface, Gemini.
 
 
 expose a wrapper API using gin framework.

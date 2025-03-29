@@ -10,6 +10,7 @@ import (
 // Message represents a queued task
 type Message struct {
 	Prompt string `json:"prompt"`
+	TaskID string `json:"task_id"`
 }
 
 // RabbitMQ manages queue connections

@@ -1,0 +1,47 @@
+version: "3.8"
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+    networks:
+      - app-network
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+  api_server:
+    build: .
+    image: api_server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./.env:/app/.env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app-network
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: worker:latest
+    volumes:
+      - ./.env:/app/.env
+    depends_on:
+        rabbitmq:
+          condition: service_healthy
+    networks:
+      - app-network
+networks:
+  app-network:
+    driver: bridge

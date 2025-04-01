@@ -56,13 +56,13 @@ func NewOpenAIClient(cfg *Config) *OpenAIClient {
 
 func (c *OpenAIClient) Call(prompt string) ApiResponse {
 	payload := map[string]interface{}{
-		"model": "gpt-3.5-turbo",
+		"model": "gpt-3.5-turbo-instruct",
 		"messages": []map[string]string{
 			{"role": "user", "content": prompt},
 		},
 	}
 	resp := callAPI(c.url, c.apiKey, "Bearer", c.Source(), c.maxRetries, c.retryDelay, payload, c.httpClient, c.cb)
-	if resp.Error == nil {
+	if resp.Error == "" {
 		var result map[string]interface{}
 		json.Unmarshal([]byte(resp.Message), &result)
 		resp.Message = result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"].(string)
@@ -102,15 +102,35 @@ func NewHuggingFaceClient(cfg *Config) *HuggingFaceClient {
 }
 
 func (c *HuggingFaceClient) Call(prompt string) ApiResponse {
-	payload := map[string]string{
-		"inputs": prompt,
+	payload := map[string]interface{}{
+		"messages": []map[string]string{
+			{
+				"role":    "user",
+				"content": prompt,
+			},
+		},
+		"model":  "deepseek/deepseek-v3-0324",
+		"stream": false,
 	}
 
 	resp := callAPI(c.url, c.apiKey, "Bearer", c.Source(), c.maxRetries, c.retryDelay, payload, c.httpClient, c.cb)
-	if resp.Error == nil {
-		var result []map[string]interface{}
+	if resp.Error == "" {
+		var result map[string]interface{}
 		json.Unmarshal([]byte(resp.Message), &result)
-		resp.Message = result[0]["generated_text"].(string)
+		choices, ok := result["choices"].([]interface{})
+		if !ok || len(choices) == 0 {
+			fmt.Errorf("no choices in HuggingFace response")
+		}
+		message, ok := choices[0].(map[string]interface{})["message"].(map[string]interface{})
+		if !ok {
+			fmt.Errorf("invalid HuggingFace response format")
+		}
+		content, ok := message["content"].(string)
+		if !ok {
+			fmt.Errorf("no content in HuggingFace response")
+		}
+
+		resp.Message = content
 	}
 	return resp
 }
@@ -149,11 +169,15 @@ func NewGeminiClient(cfg *Config) *GeminiClient {
 func (c *GeminiClient) Call(prompt string) ApiResponse {
 	payload := map[string]interface{}{
 		"contents": []map[string]interface{}{
-			{"parts": []map[string]string{{"text": prompt}}},
+			{
+				"parts": []map[string]string{
+					{"text": prompt},
+				},
+			},
 		},
 	}
 	resp := callAPI(c.url, "", "", c.Source(), c.maxRetries, c.retryDelay, payload, c.httpClient, c.cb)
-	if resp.Error == nil {
+	if resp.Error == "" {
 		var result map[string]interface{}
 		json.Unmarshal([]byte(resp.Message), &result)
 		resp.Message = result["candidates"].([]interface{})[0].(map[string]interface{})["content"].(map[string]interface{})["parts"].([]interface{})[0].(map[string]interface{})["text"].(string)
@@ -222,7 +246,7 @@ func callAPI(url, apiKey, authType, source string, maxRetries uint, retryDelay t
 	)
 
 	if err != nil {
-		return ApiResponse{Source: source, Error: err}
+		return ApiResponse{Source: source, Error: err.Error()}
 	}
 	return apiResp
 }

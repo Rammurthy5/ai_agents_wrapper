@@ -63,7 +63,6 @@ func main() {
 			c.JSON(404, gin.H{"error": "Result not found or still processing"})
 			return
 		}
-
 		c.JSON(200, result)
 	})
 

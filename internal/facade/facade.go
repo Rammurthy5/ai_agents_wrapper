@@ -62,7 +62,7 @@ func (f *Facade) Handler(c *gin.Context) {
 
 	result := f.GetMergedResults(prompt)
 	for _, r := range result.Results {
-		if r.Error != nil {
+		if r.Error != "" {
 			c.JSON(500, gin.H{"error": fmt.Sprintf("%s failed: %v", r.Source, r.Error)})
 			return
 		}
